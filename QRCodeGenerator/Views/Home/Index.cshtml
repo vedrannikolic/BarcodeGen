@@ -42,52 +42,49 @@
             }
         }
 
-        async function connectSignalR() {
+        function connectSignalR() {
             // Uspostavljanje veze sa SignalR hubom
             const connection = new signalR.HubConnectionBuilder()
                 .withUrl("/authHub") // URL vašeg SignalR huba
                 .configureLogging(signalR.LogLevel.Information)
                 .build();
 
-            try {
-                await connection.start();
+            connection.start().then(function () {
                 console.log("Connected!");
-            } catch (error) {
-                console.error("Connection error:", error);
-            }
+            }).catch(function (err) {
+                return console.error(err.toString());
+            });
 
-            connection.on("ReceiveTokens", onSignalRReceiveTokens);
-        }
+            connection.on("ReceiveTokens", (jwtToken, refreshToken) => {
+                console.log("Primljeni tokeni:", jwtToken, refreshToken);
 
-        async function onSignalRReceiveTokens(jwtToken, refreshToken) {
-            console.log("Primljeni tokeni:", jwtToken, refreshToken);
+                // Pohrana tokena u kolačić
+                document.cookie = `jwtToken=${jwtToken}; path=/`;
+                console.log("JWT token stored in cookie");
 
-            // Pohrana tokena u kolačić
-            document.cookie = `jwtToken=${jwtToken}; path=/`;
-            console.log("JWT token stored in cookie");
+                // Pohrana refresh tokena u localStorage
+                localStorage.setItem("refreshToken", refreshToken);
+                console.log("RefreshToken stored to localStorage");
 
-            // Pohrana refresh tokena u localStorage
-            localStorage.setItem("refreshToken", refreshToken);
-            console.log("RefreshToken stored to localStorage");
-
-            // Nakon što su tokeni pohranjeni, preusmjerite na landing stranicu
-            try {
-                var response = await fetch('/landing', {
+                // Nakon što su tokeni pohranjeni, preusmjerite na landing stranicu
+                fetch('/landing', {
                     method: 'GET',
                     credentials: 'include' // Uključivanje kolačića u zahtjev
-                });
-                if (response.ok) {
-                    console.log("Access to landing page granted.");
-                    // Redirect to the landing page or display it
-                    window.location.href = '/landing';
-                } else {
-                    console.error("Error accessing a secured landing page.", response.text);
-                    return;
-                }
-            } catch (error) {
-                console.error("Error accessing a secured landing page:", error);
-                return;
-            }
+                })
+                    .then(response => {
+                        if (response.ok) {
+                            console.log("Access to landing page granted.");
+                            // Redirect to the landing page or display it
+                            window.location.href = '/landing';
+                        } else {
+                            console.error("Access denied.");
+                        }
+                    })
+                    .catch(error => {
+                        console.error("Error accessing landing page:", error);
+                    });
+
+            });
         }
 
         function onDomContentLoaded() {
